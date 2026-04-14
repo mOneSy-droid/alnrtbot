@@ -5,13 +5,19 @@ import time
 import os
 import json
 
+# ==================== RAILWAY UCHUN DATABASE PATH ====================
+# Railway serverida /data papkasi mavjud, lokalda esa yo'q
+if os.path.exists('/data'):
+    DB_PATH = '/data/choyxona.db'
+    print(f"✅ Railway muhiti, baza: {DB_PATH}")
+else:
+    DB_PATH = DB_NAME
+    print(f"✅ Lokal muhit, baza: {DB_PATH}")
+
 def get_connection():
-    """Ma'lumotlar bazasiga ulanish - timeout bilan"""
-    conn = sqlite3.connect(DB_NAME, timeout=10, check_same_thread=False)
+    """Ma'lumotlar bazasiga ulanish"""
+    conn = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA cache_size=-2000")
     return conn
 
 def fix_value(value, default=0):
@@ -184,13 +190,11 @@ def fix_rooms_duplicates(conn, c):
         if not has_unique:
             print("🔄 UNIQUE constraint qo'shilmoqda...")
             
-            # Eski jadvalni saqlash
             c.execute("SELECT * FROM rooms")
             old_rooms = c.fetchall()
             
             c.execute("DROP TABLE IF EXISTS rooms")
             
-            # Yangi jadvalni yaratish - TO'G'RI USTUNLAR BILAN
             c.execute("""CREATE TABLE rooms (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 room_number TEXT UNIQUE,
@@ -213,12 +217,8 @@ def fix_rooms_duplicates(conn, c):
                 is_blocked INTEGER DEFAULT 0
             )""")
             
-            # Eski ma'lumotlarni yangi jadvalga o'tkazish
             for room in old_rooms:
                 try:
-                    # room_number, name, description, image, price, capacity, type,
-                    # has_tv, has_ac, has_wifi, has_pool, has_sauna, has_billiard,
-                    # has_tennis, has_tapchan, has_banket, is_available, is_blocked
                     c.execute("""
                         INSERT OR IGNORE INTO rooms (
                             room_number, name, description, image, price, capacity, type,
@@ -226,24 +226,24 @@ def fix_rooms_duplicates(conn, c):
                             has_tennis, has_tapchan, has_banket, is_available, is_blocked
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
-                        room[1] if len(room) > 1 else None,  # room_number
-                        room[2] if len(room) > 2 else None,  # name
-                        room[3] if len(room) > 3 else None,  # description
-                        room[4] if len(room) > 4 else None,  # image
-                        fix_value(room[5]) if len(room) > 5 else 0,  # price
-                        fix_value(room[6]) if len(room) > 6 else 0,  # capacity
-                        room[7] if len(room) > 7 else 'standart',  # type
-                        fix_value(room[8]) if len(room) > 8 else 1,  # has_tv
-                        fix_value(room[9]) if len(room) > 9 else 1,  # has_ac
-                        fix_value(room[10]) if len(room) > 10 else 1,  # has_wifi
-                        fix_value(room[11]) if len(room) > 11 else 0,  # has_pool
-                        fix_value(room[12]) if len(room) > 12 else 0,  # has_sauna
-                        fix_value(room[13]) if len(room) > 13 else 0,  # has_billiard
-                        fix_value(room[14]) if len(room) > 14 else 0,  # has_tennis
-                        fix_value(room[15]) if len(room) > 15 else 0,  # has_tapchan
-                        fix_value(room[16]) if len(room) > 16 else 0,  # has_banket
-                        fix_value(room[17]) if len(room) > 17 else 1,  # is_available
-                        fix_value(room[18]) if len(room) > 18 else 0   # is_blocked
+                        room[1] if len(room) > 1 else None,
+                        room[2] if len(room) > 2 else None,
+                        room[3] if len(room) > 3 else None,
+                        room[4] if len(room) > 4 else None,
+                        fix_value(room[5]) if len(room) > 5 else 0,
+                        fix_value(room[6]) if len(room) > 6 else 0,
+                        room[7] if len(room) > 7 else 'standart',
+                        fix_value(room[8]) if len(room) > 8 else 1,
+                        fix_value(room[9]) if len(room) > 9 else 1,
+                        fix_value(room[10]) if len(room) > 10 else 1,
+                        fix_value(room[11]) if len(room) > 11 else 0,
+                        fix_value(room[12]) if len(room) > 12 else 0,
+                        fix_value(room[13]) if len(room) > 13 else 0,
+                        fix_value(room[14]) if len(room) > 14 else 0,
+                        fix_value(room[15]) if len(room) > 15 else 0,
+                        fix_value(room[16]) if len(room) > 16 else 0,
+                        fix_value(room[17]) if len(room) > 17 else 1,
+                        fix_value(room[18]) if len(room) > 18 else 0
                     ))
                 except Exception as e:
                     print(f"Ma'lumot o'tkazishda xatolik: {e}")
@@ -405,6 +405,10 @@ def init_db():
     """
     time.sleep(1)
     
+    # Railway uchun papka yaratish
+    if os.path.exists('/data'):
+        os.makedirs('/data', exist_ok=True)
+    
     fix_all_duplicates()
     
     conn = get_connection()
@@ -424,7 +428,7 @@ def init_db():
     )""")
     print("✅ users jadvali yaratildi (yoki mavjud)")
     
-    # Xonalar jadvali - TO'G'RI USTUNLAR BILAN
+    # Xonalar jadvali
     c.execute("""CREATE TABLE IF NOT EXISTS rooms (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         room_number TEXT UNIQUE,
@@ -450,7 +454,6 @@ def init_db():
     
     # Xonalarni faqat mavjud bo'lmasa qo'shish
     rooms_data = [
-        # Sauna xonalar
         ('2', 'Finskiy sauna', 'Finskiy sauna - 2-xona', 'sauna1.jpg', 1200000, 6, 'sauna', 1, 1, 1, 1, 1, 0, 0, 0, 0),
         ('3', 'Oddiy sauna', 'Oddiy sauna - 3-xona', 'sauna2.jpg', 1200000, 6, 'sauna', 1, 1, 1, 0, 1, 0, 0, 0, 0),
         ('14', 'Tennis xona', 'Stol tennis o\'ynash uchun xona', 'tennis1.jpg', 350000, 4, 'tennis', 1, 1, 1, 0, 0, 0, 1, 0, 0),
@@ -532,7 +535,6 @@ def init_db():
     )""")
     print("✅ soups jadvali yaratildi (yoki mavjud)")
     
-    # Suyuq ovqatlarni faqat mavjud bo'lmasa qo'shish
     soups_data = [
         ('Shorva', 30000, 'kosa', "An'anaviy shorva"),
         ('Mastava', 30000, 'kosa', 'Guruchli shorva'),
@@ -548,7 +550,7 @@ def init_db():
         except Exception as e:
             print(f"Suyuq ovqat qo'shishda xatolik: {e}")
     conn.commit()
-    print("✅ Suyuq ovqatlar tekshirildi (faqat yangilari qo'shildi)")
+    print("✅ Suyuq ovqatlar tekshirildi")
     
     # Salatlar jadvali
     c.execute("""CREATE TABLE IF NOT EXISTS salads (
@@ -561,7 +563,6 @@ def init_db():
     )""")
     print("✅ salads jadvali yaratildi (yoki mavjud)")
     
-    # Salatlarni faqat mavjud bo'lmasa qo'shish
     salads_data = [
         ('Svejiy salat', 30000, None, None, 'oddiy'),
         ('Suzma', 12000, None, None, 'oddiy'),
@@ -582,7 +583,7 @@ def init_db():
         except Exception as e:
             print(f"Salat qo'shishda xatolik: {e}")
     conn.commit()
-    print("✅ Salatlar tekshirildi (faqat yangilari qo'shildi)")
+    print("✅ Salatlar tekshirildi")
     
     # Ovqatlar jadvali
     c.execute("""CREATE TABLE IF NOT EXISTS meals (
@@ -605,8 +606,6 @@ def init_db():
     print("✅ Ma'lumotlar bazasi muvaffaqiyatli tekshirildi!")
     print("=" * 50)
 
-
-# ==================== ANTI-CLONE MEAL FUNCTIONS ====================
 
 def add_meals_safe(conn, c):
     """Ovqatlarni faqat mavjud bo'lmasa qo'shish"""
@@ -631,126 +630,7 @@ def add_meals_safe(conn, c):
         except Exception as e:
             print(f"Ovqat qo'shishda xatolik: {e}")
     
-    print("✅ Ovqatlar tekshirildi (faqat yangilari qo'shildi)")
-
-
-def add_meal_safe(conn, c, name_uz, name_ru, price, category, emoji, description_uz, description_ru, force=False):
-    try:
-        c.execute("""
-            INSERT OR IGNORE INTO meals 
-            (name_uz, name_ru, price, category, emoji, description_uz, description_ru, is_available)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-        """, (name_uz, name_ru, price, category, emoji, description_uz, description_ru))
-        
-        if c.rowcount > 0:
-            new_id = c.lastrowid
-            print(f"✅ {name_uz} muvaffaqiyatli qo'shildi! (ID: {new_id})")
-            return True, new_id
-        else:
-            c.execute("SELECT id FROM meals WHERE name_uz = ? OR name_ru = ?", (name_uz, name_ru))
-            existing = c.fetchone()
-            if existing:
-                print(f"⚠️  DIQQAT: {name_uz} allaqachon mavjud! (ID: {existing[0]})")
-                return False, existing[0]
-            return False, None
-    except Exception as e:
-        print(f"Ovqat qo'shishda xatolik: {e}")
-        return False, None
-
-
-def update_meal_safe(meal_id, **kwargs):
-    conn = get_connection()
-    c = conn.cursor()
-    
-    c.execute("SELECT * FROM meals WHERE id = ?", (meal_id,))
-    existing = c.fetchone()
-    
-    if not existing:
-        print(f"❌ Xatolik: ID {meal_id} bo'lgan ovqat topilmadi!")
-        conn.close()
-        return False
-    
-    allowed_fields = ['name_uz', 'name_ru', 'price', 'category', 'emoji', 
-                      'description_uz', 'description_ru', 'is_available']
-    
-    update_fields = []
-    values = []
-    
-    for field, value in kwargs.items():
-        if field in allowed_fields:
-            update_fields.append(f"{field} = ?")
-            values.append(value)
-    
-    if not update_fields:
-        print("⚠️  Hech qanday maydon yangilanmadi!")
-        conn.close()
-        return False
-    
-    query = f"UPDATE meals SET {', '.join(update_fields)} WHERE id = ?"
-    values.append(meal_id)
-    
-    c.execute(query, values)
-    conn.commit()
-    
-    print(f"✅ Ovqat (ID: {meal_id}) muvaffaqiyatli yangilandi!")
-    conn.close()
-    return True
-
-
-def get_meal_by_name(name):
-    conn = get_connection()
-    c = conn.cursor()
-    
-    c.execute("""
-        SELECT * FROM meals 
-        WHERE name_uz LIKE ? OR name_ru LIKE ?
-        ORDER BY id
-    """, (f"%{name}%", f"%{name}%"))
-    
-    results = c.fetchall()
-    conn.close()
-    
-    fixed_results = []
-    for meal in results:
-        meal_list = list(meal)
-        if len(meal_list) > 3:
-            meal_list[3] = fix_value(meal_list[3])
-        fixed_results.append(tuple(meal_list))
-    
-    return fixed_results
-
-
-def show_all_meals_with_count():
-    conn = get_connection()
-    c = conn.cursor()
-    
-    c.execute("""
-        SELECT name_uz, name_ru, category, price, COUNT(*) as clone_count
-        FROM meals
-        GROUP BY name_uz
-        ORDER BY clone_count DESC, name_uz
-    """)
-    
-    results = c.fetchall()
-    conn.close()
-    
-    print("\n📊 OVQATLAR STATISTIKASI:")
-    print("-" * 70)
-    print(f"{'Nomi (UZ)':<20} {'Nomi (RU)':<20} {'Kategoriya':<12} {'Narxi':<10} {'Clone soni':<10}")
-    print("-" * 70)
-    
-    for row in results:
-        name_uz = row['name_uz']
-        name_ru = row['name_ru']
-        category = row['category']
-        price = fix_value(row['price'])
-        count = row['clone_count']
-        print(f"{name_uz:<20} {name_ru:<20} {category:<12} {price:<10} {count:<10}")
-    
-    total = sum([row['clone_count'] for row in results])
-    print("-" * 70)
-    print(f"Jami ovqatlar: {total} ta")
-    print(f"Unikal ovqatlar: {len(results)} ta")
+    print("✅ Ovqatlar tekshirildi")
 
 
 # ==================== USER FUNCTIONS ====================
@@ -802,9 +682,7 @@ def get_rooms():
     c.execute("SELECT * FROM rooms ORDER BY price DESC")
     result = c.fetchall()
     conn.close()
-    
-    fixed_result = [fix_room_data(room) for room in result]
-    return fixed_result
+    return [fix_room_data(room) for room in result]
 
 def get_room(room_id):
     conn = get_connection()
@@ -823,11 +701,10 @@ def get_room_by_number(room_number):
     return fix_room_data(result)
 
 def get_filtered_rooms(category_type):
-    """Kategoriya bo'yicha xonalarni filterlash - type ustuni bo'yicha"""
+    """Kategoriya bo'yicha xonalarni filterlash"""
     conn = get_connection()
     c = conn.cursor()
     
-    # Kategoriya nomlarini type ustuniga moslashtirish
     if category_type == 'banket':
         c.execute("SELECT * FROM rooms WHERE type = 'banket' ORDER BY price DESC")
     elif category_type == 'tapchan':
@@ -843,9 +720,7 @@ def get_filtered_rooms(category_type):
     
     result = c.fetchall()
     conn.close()
-    
-    fixed_result = [fix_room_data(room) for room in result]
-    return fixed_result
+    return [fix_room_data(room) for room in result]
 
 def get_room_advantages(room_id):
     """Xonaning afzalliklarini qaytarish"""
@@ -871,7 +746,7 @@ def get_room_advantages(room_id):
     return advantages
 
 def toggle_room_block(room_id):
-    """Xonani band/bo'sh qilish (toggle)"""
+    """Xonani band/bo'sh qilish"""
     conn = get_connection()
     c = conn.cursor()
     
@@ -909,30 +784,14 @@ def get_room_block_status(room_id):
 
 def get_room_by_id(room_id):
     """Xonani ID bo'yicha olish"""
+    return get_room(room_id)
+
+def get_all_rooms_with_status():
+    """Barcha xonalarni holati bilan olish"""
     conn = get_connection()
     c = conn.cursor()
     
     try:
-        c.execute("SELECT * FROM rooms WHERE id = ?", (room_id,))
-        result = c.fetchone()
-        if result:
-            # Row obyektini tuple ga o'tkazish
-            return tuple(result)
-        return None
-    except Exception as e:
-        print(f"Xonani olishda xatolik: {e}")
-        return None
-    finally:
-        conn.close()
-
-def get_all_rooms_with_status():
-    """Barcha xonalarni holati bilan olish - TO'G'RILANGAN VERSIYA"""
-    import sqlite3
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    
-    try:
-        # To'g'ridan-to'g'ri SELECT - barcha kerakli ustunlar bilan
         c.execute("""
             SELECT id, room_number, name, description, image, price, capacity, 
                    type, COALESCE(is_blocked, 0) as is_blocked
@@ -944,15 +803,8 @@ def get_all_rooms_with_status():
         rooms = []
         for row in result:
             rooms.append((
-                row[0],  # id
-                row[1],  # room_number
-                row[2],  # name
-                row[3],  # description
-                row[4],  # image
-                row[5],  # price
-                row[6],  # capacity
-                row[7],  # type
-                row[8]   # is_blocked
+                row[0], row[1], row[2], row[3], row[4],
+                row[5], row[6], row[7], row[8]
             ))
         
         print(f"✅ get_all_rooms_with_status: {len(rooms)} ta xona topildi")
@@ -960,11 +812,11 @@ def get_all_rooms_with_status():
         
     except Exception as e:
         print(f"❌ Xonalarni olishda xatolik: {e}")
-        import traceback
-        traceback.print_exc()
         return []
     finally:
         conn.close()
+
+
 # ==================== BOOKING FUNCTIONS ====================
 
 def add_booking(user_id, user_name, user_phone, date, time, guests, room_id, room_name):
@@ -1094,7 +946,7 @@ def get_booking_meals(booking_id):
         conn.close()
 
 def get_today_bookings_for_admin():
-    """Bugungi bronlarni admin uchun olish (band xonalar bilan)"""
+    """Bugungi bronlarni admin uchun olish"""
     conn = get_connection()
     c = conn.cursor()
     
@@ -1437,9 +1289,3 @@ if __name__ == "__main__":
     print("=" * 50)
     init_db()
     print("\n✅ Baza muvaffaqiyatli yaratildi!")
-    print("📁 Fayl nomi: choyxona.db")
-    
-    print("\n" + "=" * 50)
-    print("🔍 OVQATLAR HOLATI TEKSHIRILMOQDA...")
-    print("=" * 50)
-    show_all_meals_with_count()
