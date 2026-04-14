@@ -914,11 +914,11 @@ def get_all_rooms_with_status():
     
     try:
         c.execute("""
-            SELECT id, room_number, name, description, price, capacity, type, 
-                   is_blocked, has_tv, has_ac, has_wifi, has_pool, has_sauna, 
+            SELECT id, room_number, name, description, image, price, capacity, 
+                   type, is_blocked, has_tv, has_ac, has_wifi, has_pool, has_sauna, 
                    has_billiard, has_tennis, has_tapchan, has_banket
             FROM rooms 
-            ORDER BY type, id
+            ORDER BY CAST(room_number AS INTEGER) ASC
         """)
         result = c.fetchall()
         return result

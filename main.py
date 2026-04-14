@@ -1246,7 +1246,7 @@ async def handle_admin_panel_message(message: Message):
 
 @dp.callback_query(lambda c: c.data == "admin_block_rooms")
 async def admin_block_rooms(callback: CallbackQuery):
-    """Admin: Xonalarni band qilish paneli (room_number bo'yicha o'sish tartibida)"""
+    """Admin: Xonalarni band qilish paneli"""
     if callback.from_user.id not in ADMIN_IDS:
         await callback.answer("❌ Ruxsat yo'q")
         return
@@ -1261,36 +1261,49 @@ async def admin_block_rooms(callback: CallbackQuery):
         await callback.answer()
         return
     
-    # Xonalarni room_number (xona raqami) bo'yicha o'sish tartibida saralash
-    rooms_sorted = sorted(rooms, key=lambda x: int(x[1]) if str(x[1]).isdigit() else 0)
+    # room_number bo'yicha saralash (string bo'lsa ham raqam sifatida saralash)
+    rooms_sorted = sorted(rooms, key=lambda x: int(x[1]) if x[1] and str(x[1]).isdigit() else 0)
     
     text = "🏠 <b>Xonalarni band qilish</b>\n\n"
     text += "Quyidagi xonalardan birini tanlang:\n\n"
     
     for room in rooms_sorted:
+        # room tuple indekslari:
+        # 0=id, 1=room_number, 2=name, 3=description, 4=image, 5=price, 
+        # 6=capacity, 7=type, 8=is_blocked
         room_id = room[0]
-        room_number = room[1]      # xona raqami
-        room_name = room[2]
-        room_type = room[6]
-        is_blocked = room[7] if len(room) > 7 else 0
+        room_number = room[1] if room[1] else "Noma'lum"
+        room_name = room[2] if room[2] else "Xona"
+        room_type = room[7] if len(room) > 7 and room[7] else "Standart"
+        is_blocked = room[8] if len(room) > 8 else 0
         
         status_emoji = "🔴 Band" if is_blocked else "🟢 Bo'sh"
         status_icon = "🔒" if is_blocked else "🔓"
         
-        text += f"{status_icon} <b>Xona #{room_number}</b> - {room_name} ({room_type})\n"
+        # Xona turini o'zbekcha qilish
+        type_names = {
+            'banket': '🎉 Banket',
+            'tapchan': '🪑 Tapchan', 
+            'sauna': '🧖 Sauna',
+            'tennis': '🏓 Tennis',
+            'billiard': '🎱 Billiard'
+        }
+        room_type_display = type_names.get(room_type, room_type)
+        
+        text += f"{status_icon} <b>Xona #{room_number}</b> - {room_name} ({room_type_display})\n"
         text += f"   📍 Holat: {status_emoji}\n\n"
     
     builder = InlineKeyboardBuilder()
     
     for room in rooms_sorted:
         room_id = room[0]
-        room_number = room[1]
-        room_name = room[2][:20]
-        is_blocked = room[7] if len(room) > 7 else 0
+        room_number = room[1] if room[1] else "Noma'lum"
+        room_name = (room[2][:15] + "...") if room[2] and len(room[2]) > 15 else (room[2] or "Xona")
+        is_blocked = room[8] if len(room) > 8 else 0
         status_text = "🔴 Band" if is_blocked else "🟢 Bo'sh"
         
         builder.row(InlineKeyboardButton(
-            text=f"Xona #{room_number} {room_name} - {status_text}",
+            text=f"Xona #{room_number} - {room_name} - {status_text}",
             callback_data=f"admin_toggle_room_{room_id}"
         ))
     
