@@ -27,7 +27,7 @@ from database import (
     get_statistics, get_all_users, get_all_bookings, get_meals, get_meal_by_id,
     add_room_blocked_column, add_selected_meals_to_bookings, toggle_room_block,
     get_room_block_status, get_all_rooms_with_status, get_room_by_id,
-    get_today_bookings_for_admin, update_booking_meals
+    get_today_bookings_for_admin, update_booking_meals , 
 )
 from states import Registration, Booking, CheckStates
 from keyboards import (
@@ -1251,67 +1251,59 @@ async def admin_block_rooms(callback: CallbackQuery):
         await callback.answer("❌ Ruxsat yo'q")
         return
     
+    print("🔍 admin_block_rooms chaqirildi")
+    
     rooms = get_all_rooms_with_status()
     
-    if not rooms:
+    print(f"📊 rooms soni: {len(rooms)}")
+    
+    if not rooms or len(rooms) == 0:
         await callback.message.edit_text(
-            "🏠 Xonalar topilmadi.",
+            "🏠 <b>Xonalar topilmadi!</b>",
             reply_markup=admin_back_keyboard()
         )
         await callback.answer()
         return
     
-    # room_number bo'yicha saralash (string bo'lsa ham raqam sifatida saralash)
-    rooms_sorted = sorted(rooms, key=lambda x: int(x[1]) if x[1] and str(x[1]).isdigit() else 0)
+    builder = InlineKeyboardBuilder()
+    
+    type_names = {
+        'banket': '🎉 Banket',
+        'tapchan': '🪑 Tapchan', 
+        'sauna': '🧖 Sauna',
+        'tennis': '🏓 Tennis',
+        'billiard': '🎱 Billiard'
+    }
     
     text = "🏠 <b>Xonalarni band qilish</b>\n\n"
-    text += "Quyidagi xonalardan birini tanlang:\n\n"
+    text += f"📊 Jami: {len(rooms)} ta xona\n"
+    text += "━" * 30 + "\n\n"
     
-    for room in rooms_sorted:
-        # room tuple indekslari:
-        # 0=id, 1=room_number, 2=name, 3=description, 4=image, 5=price, 
-        # 6=capacity, 7=type, 8=is_blocked
+    for room in rooms:
         room_id = room[0]
-        room_number = room[1] if room[1] else "Noma'lum"
+        room_number = room[1] if room[1] else "?"
         room_name = room[2] if room[2] else "Xona"
         room_type = room[7] if len(room) > 7 and room[7] else "Standart"
-        is_blocked = room[8] if len(room) > 8 else 0
+        is_blocked = room[8] if len(room) > 8 and room[8] is not None else 0
         
-        status_emoji = "🔴 Band" if is_blocked else "🟢 Bo'sh"
         status_icon = "🔒" if is_blocked else "🔓"
-        
-        # Xona turini o'zbekcha qilish
-        type_names = {
-            'banket': '🎉 Banket',
-            'tapchan': '🪑 Tapchan', 
-            'sauna': '🧖 Sauna',
-            'tennis': '🏓 Tennis',
-            'billiard': '🎱 Billiard'
-        }
+        status_text = "🔴 Band" if is_blocked else "🟢 Bo'sh"
         room_type_display = type_names.get(room_type, room_type)
         
         text += f"{status_icon} <b>Xona #{room_number}</b> - {room_name} ({room_type_display})\n"
-        text += f"   📍 Holat: {status_emoji}\n\n"
-    
-    builder = InlineKeyboardBuilder()
-    
-    for room in rooms_sorted:
-        room_id = room[0]
-        room_number = room[1] if room[1] else "Noma'lum"
-        room_name = (room[2][:15] + "...") if room[2] and len(room[2]) > 15 else (room[2] or "Xona")
-        is_blocked = room[8] if len(room) > 8 else 0
-        status_text = "🔴 Band" if is_blocked else "🟢 Bo'sh"
+        text += f"   📍 Holat: {status_text}\n\n"
+        
+        short_name = (room_name[:12] + "...") if len(room_name) > 12 else room_name
         
         builder.row(InlineKeyboardButton(
-            text=f"Xona #{room_number} - {room_name} - {status_text}",
+            text=f"{status_icon} Xona #{room_number} - {short_name}",
             callback_data=f"admin_toggle_room_{room_id}"
         ))
     
     builder.row(InlineKeyboardButton(text="⬅️ Orqaga", callback_data="admin_back"))
     
     await callback.message.edit_text(text, reply_markup=builder.as_markup())
-    await callback.answer()
-
+    await callback.answer() 
 
 @dp.callback_query(lambda c: c.data.startswith("admin_toggle_room_"))
 async def admin_toggle_room(callback: CallbackQuery):
@@ -1323,13 +1315,13 @@ async def admin_toggle_room(callback: CallbackQuery):
     room_id = int(callback.data.split("_")[3])
     
     new_status = toggle_room_block(room_id)
-    room = get_room_by_id(room_id)
+    room = get_room(room_id)  # get_room_by_id o'rniga get_room
     
     if room:
         status_text = "🔴 BAND QILINDI" if new_status else "🟢 BO'SH QILINDI"
         status_emoji = "🔴" if new_status else "🟢"
         
-        await callback.answer(f"{status_emoji} Xona #{room_id} {status_text}!", show_alert=True)
+        await callback.answer(f"{status_emoji} Xona #{room[1]} {status_text}!", show_alert=True)
         
         await admin_block_rooms(callback)
     else:
@@ -1680,7 +1672,6 @@ async def handle_unknown(message: Message):
 
 async def main():
     init_db()
-    fix_database()
     # Yangi ustunlarni qo'shish
     try:
         add_room_blocked_column()

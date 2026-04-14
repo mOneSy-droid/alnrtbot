@@ -907,43 +907,64 @@ def get_room_block_status(room_id):
     finally:
         conn.close()
 
-def get_all_rooms_with_status():
-    """Barcha xonalarni holati bilan olish"""
-    conn = get_connection()
-    c = conn.cursor()
-    
-    try:
-        c.execute("""
-            SELECT id, room_number, name, description, image, price, capacity, 
-                   type, is_blocked, has_tv, has_ac, has_wifi, has_pool, has_sauna, 
-                   has_billiard, has_tennis, has_tapchan, has_banket
-            FROM rooms 
-            ORDER BY CAST(room_number AS INTEGER) ASC
-        """)
-        result = c.fetchall()
-        return result
-    except Exception as e:
-        print(f"Xonalarni olishda xatolik: {e}")
-        return []
-    finally:
-        conn.close()
-
 def get_room_by_id(room_id):
-    """Xonani ID bo'yicha olish (to'liq ma'lumot)"""
+    """Xonani ID bo'yicha olish"""
     conn = get_connection()
     c = conn.cursor()
     
     try:
         c.execute("SELECT * FROM rooms WHERE id = ?", (room_id,))
         result = c.fetchone()
-        return fix_room_data(result) if result else None
+        if result:
+            # Row obyektini tuple ga o'tkazish
+            return tuple(result)
+        return None
     except Exception as e:
         print(f"Xonani olishda xatolik: {e}")
         return None
     finally:
         conn.close()
 
-
+def get_all_rooms_with_status():
+    """Barcha xonalarni holati bilan olish - TO'G'RILANGAN VERSIYA"""
+    import sqlite3
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    
+    try:
+        # To'g'ridan-to'g'ri SELECT - barcha kerakli ustunlar bilan
+        c.execute("""
+            SELECT id, room_number, name, description, image, price, capacity, 
+                   type, COALESCE(is_blocked, 0) as is_blocked
+            FROM rooms 
+            ORDER BY CAST(room_number AS INTEGER) ASC
+        """)
+        result = c.fetchall()
+        
+        rooms = []
+        for row in result:
+            rooms.append((
+                row[0],  # id
+                row[1],  # room_number
+                row[2],  # name
+                row[3],  # description
+                row[4],  # image
+                row[5],  # price
+                row[6],  # capacity
+                row[7],  # type
+                row[8]   # is_blocked
+            ))
+        
+        print(f"✅ get_all_rooms_with_status: {len(rooms)} ta xona topildi")
+        return rooms
+        
+    except Exception as e:
+        print(f"❌ Xonalarni olishda xatolik: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+    finally:
+        conn.close()
 # ==================== BOOKING FUNCTIONS ====================
 
 def add_booking(user_id, user_name, user_phone, date, time, guests, room_id, room_name):
