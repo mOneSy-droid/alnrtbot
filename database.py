@@ -788,7 +788,7 @@ def get_room_by_id(room_id):
 
 def get_all_rooms_with_status():
     """Barcha xonalarni holati bilan olish"""
-    conn = get_connection(DB_PATH)
+    conn = get_connection()
     c = conn.cursor()
     
     try:
