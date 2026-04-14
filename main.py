@@ -1251,15 +1251,16 @@ async def admin_block_rooms(callback: CallbackQuery):
         await callback.answer("❌ Ruxsat yo'q")
         return
     
-    print("🔍 admin_block_rooms chaqirildi")
+    # To'g'ridan-to'g'ri import qilish
+    from database import get_all_rooms_with_status, toggle_room_block
     
     rooms = get_all_rooms_with_status()
     
-    print(f"📊 rooms soni: {len(rooms)}")
+    print(f"🔍 admin_block_rooms: {len(rooms)} ta xona olindi")
     
-    if not rooms or len(rooms) == 0:
+    if not rooms:
         await callback.message.edit_text(
-            "🏠 <b>Xonalar topilmadi!</b>",
+            "🏠 Xonalar topilmadi.",
             reply_markup=admin_back_keyboard()
         )
         await callback.answer()
@@ -1267,43 +1268,26 @@ async def admin_block_rooms(callback: CallbackQuery):
     
     builder = InlineKeyboardBuilder()
     
-    type_names = {
-        'banket': '🎉 Banket',
-        'tapchan': '🪑 Tapchan', 
-        'sauna': '🧖 Sauna',
-        'tennis': '🏓 Tennis',
-        'billiard': '🎱 Billiard'
-    }
-    
-    text = "🏠 <b>Xonalarni band qilish</b>\n\n"
-    text += f"📊 Jami: {len(rooms)} ta xona\n"
-    text += "━" * 30 + "\n\n"
-    
     for room in rooms:
         room_id = room[0]
         room_number = room[1] if room[1] else "?"
-        room_name = room[2] if room[2] else "Xona"
-        room_type = room[7] if len(room) > 7 and room[7] else "Standart"
-        is_blocked = room[8] if len(room) > 8 and room[8] is not None else 0
+        room_name = room[2][:20] if room[2] else "Xona"
+        is_blocked = room[8] if len(room) > 8 else 0
         
-        status_icon = "🔒" if is_blocked else "🔓"
-        status_text = "🔴 Band" if is_blocked else "🟢 Bo'sh"
-        room_type_display = type_names.get(room_type, room_type)
-        
-        text += f"{status_icon} <b>Xona #{room_number}</b> - {room_name} ({room_type_display})\n"
-        text += f"   📍 Holat: {status_text}\n\n"
-        
-        short_name = (room_name[:12] + "...") if len(room_name) > 12 else room_name
+        status = "🔴" if is_blocked else "🟢"
         
         builder.row(InlineKeyboardButton(
-            text=f"{status_icon} Xona #{room_number} - {short_name}",
+            text=f"{status} Xona #{room_number} - {room_name}",
             callback_data=f"admin_toggle_room_{room_id}"
         ))
     
     builder.row(InlineKeyboardButton(text="⬅️ Orqaga", callback_data="admin_back"))
     
-    await callback.message.edit_text(text, reply_markup=builder.as_markup())
-    await callback.answer() 
+    await callback.message.edit_text(
+        f"🏠 <b>Xonalarni band qilish</b>\n\nJami: {len(rooms)} ta xona",
+        reply_markup=builder.as_markup()
+    )
+    await callback.answer()
 
 @dp.callback_query(lambda c: c.data.startswith("admin_toggle_room_"))
 async def admin_toggle_room(callback: CallbackQuery):
